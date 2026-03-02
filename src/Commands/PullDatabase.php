@@ -44,6 +44,12 @@ class PullDatabase extends Command
         $this->driver = $this->resolveDriver();
 
         if ($this->option('push-to-staging')) {
+            if (! $this->hasStagingConfig()) {
+                error('Staging database credentials are not configured.');
+
+                return Command::FAILURE;
+            }
+
             return $this->pushToStaging();
         }
 
@@ -86,7 +92,9 @@ class PullDatabase extends Command
             $options['clean'] = 'Clean up old dumps';
         }
 
-        $options['staging'] = 'Push local to staging';
+        if ($this->hasStagingConfig()) {
+            $options['staging'] = 'Push local to staging';
+        }
 
         $action = select(
             label: 'What would you like to do?',
@@ -443,6 +451,11 @@ class PullDatabase extends Command
             ])
             ->sortByDesc('date')
             ->values();
+    }
+
+    private function hasStagingConfig(): bool
+    {
+        return config('db-pull.staging.server') && config('db-pull.staging.password');
     }
 
     private function buildLocalConnection(): string
