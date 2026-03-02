@@ -41,7 +41,7 @@ class PostgresDriver implements Driver
 
     public function remoteConnectionString(string $server, string $username, string $password, string $database): string
     {
-        return "postgres://{$username}:{$password}@{$server}.pg.laravel.cloud/{$database}";
+        return "postgres://{$username}:{$password}@{$server}/{$database}";
     }
 
     public function localConnectionString(string $database, string $username, string $password = ''): string
