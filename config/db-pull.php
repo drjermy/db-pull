@@ -103,13 +103,19 @@ return [
 
         // Tables to never sanitize
         'skip_tables' => [
-            'migrations',
             'cache',
             'cache_locks',
-            'jobs',
-            'job_batches',
             'failed_jobs',
+            'job_batches',
+            'jobs',
+            'migrations',
+            'password_reset_tokens',
+            'password_resets',
+            'personal_access_tokens',
             'sessions',
+            'telescope_entries',
+            'telescope_entries_tags',
+            'telescope_monitoring',
         ],
 
         // Records to upsert after sanitization (e.g. a known admin user)
