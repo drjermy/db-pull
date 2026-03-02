@@ -1,0 +1,26 @@
+{
+    "name": "drjermy/db-pull",
+    "description": "Pull production databases locally with automatic sanitization",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^11.0 || ^12.0",
+        "illuminate/support": "^11.0 || ^12.0",
+        "illuminate/database": "^11.0 || ^12.0",
+        "laravel/prompts": "^0.1 || ^0.2 || ^0.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "DrJermy\\DbPull\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "DrJermy\\DbPull\\DbPullServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable"
+}
