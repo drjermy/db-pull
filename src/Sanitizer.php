@@ -72,6 +72,17 @@ class Sanitizer
             return;
         }
 
+        $hasId = in_array('id', $columns, true);
+        $needsId = $this->rulesNeedIdentifier($applicableRules);
+
+        // If strategies need a unique identifier but the table has no id column,
+        // fall back to row-by-row updates using the query builder
+        if ($needsId && ! $hasId) {
+            $this->sanitizeTableWithoutId($table, $applicableRules);
+
+            return;
+        }
+
         $sets = [];
         $dateColumns = [];
 
@@ -101,6 +112,52 @@ class Sanitizer
         if (! empty($dateColumns)) {
             $this->shiftDates($table, $dateColumns);
         }
+    }
+
+    /**
+     * Sanitize a table that has no `id` column by processing rows individually.
+     */
+    private function sanitizeTableWithoutId(string $table, array $rules): void
+    {
+        $counter = 0;
+        $hashedPassword = Hash::make('password');
+
+        DB::table($table)->orderBy(DB::raw('1'))->each(function ($row) use ($table, $rules, &$counter, $hashedPassword) {
+            $counter++;
+            $updates = [];
+
+            // Build a WHERE clause from all columns to identify this row
+            $where = (array) $row;
+
+            foreach ($rules as $column => $strategy) {
+                $updates[$column] = match ($strategy) {
+                    'fake_email' => "user{$counter}@example.com",
+                    'fake_name' => "User {$counter}",
+                    'hash_random' => $hashedPassword,
+                    'fake_phone' => '+1555'.str_pad($counter, 7, '0', STR_PAD_LEFT),
+                    'null' => null,
+                    'shift_date' => $row->{$column} !== null
+                        ? now()->parse($row->{$column})->addYears(random_int(-5, 5))
+                        : null,
+                    default => $row->{$column},
+                };
+            }
+
+            DB::table($table)->where($where)->limit(1)->update($updates);
+        });
+    }
+
+    private function rulesNeedIdentifier(array $rules): bool
+    {
+        $idStrategies = ['fake_email', 'fake_name', 'fake_phone'];
+
+        foreach ($rules as $strategy) {
+            if (in_array($strategy, $idStrategies, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function buildSetClause(string $column, string $strategy): ?string
