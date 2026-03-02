@@ -39,14 +39,18 @@ class PostgresDriver implements Driver
         ];
     }
 
-    public function remoteConnectionString(string $server, string $password, string $database): string
+    public function remoteConnectionString(string $server, string $username, string $password, string $database): string
     {
-        return "postgres://laravel:{$password}@{$server}.pg.laravel.cloud/{$database}";
+        return "postgres://{$username}:{$password}@{$server}.pg.laravel.cloud/{$database}";
     }
 
-    public function localConnectionString(string $database): string
+    public function localConnectionString(string $database, string $username, string $password = ''): string
     {
-        return "postgres://root@127.0.0.1/{$database}";
+        if ($password !== '') {
+            return "postgres://{$username}:{$password}@127.0.0.1/{$database}";
+        }
+
+        return "postgres://{$username}@127.0.0.1/{$database}";
     }
 
     public function dumpExtension(): string

@@ -104,9 +104,9 @@ class PullDatabase extends Command
     private function pullFromProduction(): int
     {
         $server = config('db-pull.cloud.server');
+        $username = config('db-pull.cloud.username');
         $password = config('db-pull.cloud.password');
         $remoteDatabase = config('db-pull.cloud.database');
-        $localDatabase = config('db-pull.local.database');
         $dumpPath = config('db-pull.dump_path');
 
         if (! $server || ! $password) {
@@ -128,8 +128,8 @@ class PullDatabase extends Command
             mkdir($dumpPath, 0755, true);
         }
 
-        $remoteConnection = $this->driver->remoteConnectionString($server, $password, $remoteDatabase);
-        $localConnection = $this->driver->localConnectionString($localDatabase);
+        $remoteConnection = $this->driver->remoteConnectionString($server, $username, $password, $remoteDatabase);
+        $localConnection = $this->buildLocalConnection();
 
         // Step 1: Dump production
         $dumpResult = spin(
@@ -197,8 +197,6 @@ class PullDatabase extends Command
 
     private function restoreFromDump(): int
     {
-        $localDatabase = config('db-pull.local.database');
-
         $dumps = $this->getDumpFiles();
 
         if ($dumps->isEmpty()) {
@@ -228,7 +226,7 @@ class PullDatabase extends Command
             return Command::SUCCESS;
         }
 
-        $localConnection = $this->driver->localConnectionString($localDatabase);
+        $localConnection = $this->buildLocalConnection();
 
         // Reset local database
         $resetResult = spin(
@@ -278,8 +276,8 @@ class PullDatabase extends Command
 
     private function pushToStaging(): int
     {
-        $localDatabase = config('db-pull.local.database');
         $stagingServer = config('db-pull.staging.server');
+        $stagingUsername = config('db-pull.staging.username');
         $stagingPassword = config('db-pull.staging.password');
         $stagingDatabase = config('db-pull.staging.database');
         $forbiddenDatabases = config('db-pull.forbidden_staging_databases', []);
@@ -311,8 +309,8 @@ class PullDatabase extends Command
         }
 
         $ext = $this->driver->dumpExtension();
-        $localConnection = $this->driver->localConnectionString($localDatabase);
-        $stagingConnection = $this->driver->remoteConnectionString($stagingServer, $stagingPassword, $stagingDatabase);
+        $localConnection = $this->buildLocalConnection();
+        $stagingConnection = $this->driver->remoteConnectionString($stagingServer, $stagingUsername, $stagingPassword, $stagingDatabase);
         $sanitizedDumpFile = $dumpPath.'/sanitized-'.now()->format('Y-m-d-His').$ext;
 
         // Dump the local database
@@ -445,6 +443,15 @@ class PullDatabase extends Command
             ])
             ->sortByDesc('date')
             ->values();
+    }
+
+    private function buildLocalConnection(): string
+    {
+        return $this->driver->localConnectionString(
+            config('db-pull.local.database'),
+            config('db-pull.local.username'),
+            config('db-pull.local.password', ''),
+        );
     }
 
     private function handleDumpCleanup(string $dumpFile): void

@@ -28,12 +28,12 @@ interface Driver
     /**
      * Build a connection string for a Laravel Cloud remote database.
      */
-    public function remoteConnectionString(string $server, string $password, string $database): string;
+    public function remoteConnectionString(string $server, string $username, string $password, string $database): string;
 
     /**
      * Build a connection string or arguments for the local database.
      */
-    public function localConnectionString(string $database): string;
+    public function localConnectionString(string $database, string $username, string $password = ''): string;
 
     /**
      * The file extension to use for dump files.

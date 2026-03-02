@@ -44,25 +44,32 @@ class MysqlDriver implements Driver
         );
     }
 
-    public function remoteConnectionString(string $server, string $password, string $database): string
+    public function remoteConnectionString(string $server, string $username, string $password, string $database): string
     {
         return json_encode([
             '--host='.$server,
             '--port=3306',
-            '--user=laravel',
+            '--user='.$username,
             '--password='.$password,
             $database,
         ]);
     }
 
-    public function localConnectionString(string $database): string
+    public function localConnectionString(string $database, string $username, string $password = ''): string
     {
-        return json_encode([
+        $args = [
             '--host=127.0.0.1',
             '--port=3306',
-            '--user=root',
-            $database,
-        ]);
+            '--user='.$username,
+        ];
+
+        if ($password !== '') {
+            $args[] = '--password='.$password;
+        }
+
+        $args[] = $database;
+
+        return json_encode($args);
     }
 
     public function dumpExtension(): string

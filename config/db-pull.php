@@ -22,6 +22,7 @@ return [
 
     'cloud' => [
         'server' => env('CLOUD_DB_SERVER'),
+        'username' => env('CLOUD_DB_USERNAME', 'laravel'),
         'password' => env('CLOUD_DB_PASSWORD'),
         'database' => env('CLOUD_DB_DATABASE', 'main'),
     ],
@@ -34,6 +35,7 @@ return [
 
     'staging' => [
         'server' => env('STAGING_DB_SERVER', env('CLOUD_DB_SERVER')),
+        'username' => env('STAGING_DB_USERNAME', env('CLOUD_DB_USERNAME', 'laravel')),
         'password' => env('STAGING_DB_PASSWORD', env('CLOUD_DB_PASSWORD')),
         'database' => env('STAGING_DB_DATABASE', 'staging'),
     ],
@@ -45,6 +47,8 @@ return [
     */
 
     'local' => [
+        'username' => env('DB_USERNAME', 'root'),
+        'password' => env('DB_PASSWORD', ''),
         'database' => env('DB_DATABASE'),
     ],
 
