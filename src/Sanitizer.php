@@ -2,6 +2,7 @@
 
 namespace DrJermy\DbPull;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ class Sanitizer
         $globalColumns = $config['columns'] ?? [];
         $tableOverrides = $config['tables'] ?? [];
         $skipTables = $config['skip_tables'] ?? [];
+        $preserve = $config['preserve'] ?? [];
         $seeds = $config['seed'] ?? [];
 
         $tables = $this->getAllTables();
@@ -41,7 +43,9 @@ class Sanitizer
                 continue;
             }
 
-            $this->sanitizeTable($table, $rules);
+            $preserveRules = $preserve[$table] ?? [];
+
+            $this->sanitizeTable($table, $rules, $preserveRules);
         }
 
         // Upsert seed records
@@ -63,7 +67,11 @@ class Sanitizer
         }
     }
 
-    private function sanitizeTable(string $table, array $rules): void
+    /**
+     * @param  array<string, string>  $rules
+     * @param  array<int, array<string, mixed>>  $preserveRules
+     */
+    private function sanitizeTable(string $table, array $rules, array $preserveRules): void
     {
         $columns = Schema::getColumnListing($table);
         $applicableRules = array_intersect_key($rules, array_flip($columns));
@@ -78,7 +86,7 @@ class Sanitizer
         // If strategies need a unique identifier but the table has no id column,
         // fall back to row-by-row updates using the query builder
         if ($needsId && ! $hasId) {
-            $this->sanitizeTableWithoutId($table, $applicableRules);
+            $this->sanitizeTableWithoutId($table, $applicableRules, $preserveRules);
 
             return;
         }
@@ -105,28 +113,34 @@ class Sanitizer
             $grammar = DB::getQueryGrammar();
             $wrappedTable = $grammar->wrapTable($table);
             $setString = implode(', ', $sets);
-            DB::statement("UPDATE {$wrappedTable} SET {$setString}");
+            $where = $this->buildPreserveWhereClause($preserveRules);
+            DB::statement("UPDATE {$wrappedTable} SET {$setString}{$where}");
         }
 
         // Handle shift_date separately (needs per-row randomisation)
         if (! empty($dateColumns)) {
-            $this->shiftDates($table, $dateColumns);
+            $this->shiftDates($table, $dateColumns, $preserveRules);
         }
     }
 
     /**
      * Sanitize a table that has no `id` column by processing rows individually.
+     *
+     * @param  array<string, string>  $rules
+     * @param  array<int, array<string, mixed>>  $preserveRules
      */
-    private function sanitizeTableWithoutId(string $table, array $rules): void
+    private function sanitizeTableWithoutId(string $table, array $rules, array $preserveRules): void
     {
         $counter = 0;
         $hashedPassword = Hash::make('password');
 
-        DB::table($table)->orderBy(DB::raw('1'))->each(function ($row) use ($table, $rules, &$counter, $hashedPassword) {
+        $query = DB::table($table)->orderBy(DB::raw('1'));
+        $this->applyPreserveConditions($query, $preserveRules);
+
+        $query->each(function ($row) use ($table, $rules, &$counter, $hashedPassword) {
             $counter++;
             $updates = [];
 
-            // Build a WHERE clause from all columns to identify this row
             $where = (array) $row;
 
             foreach ($rules as $column => $strategy) {
@@ -145,6 +159,51 @@ class Sanitizer
 
             DB::table($table)->where($where)->limit(1)->update($updates);
         });
+    }
+
+    /**
+     * Build a raw WHERE clause to exclude preserved rows from bulk UPDATEs.
+     *
+     * @param  array<int, array<string, mixed>>  $preserveRules
+     */
+    private function buildPreserveWhereClause(array $preserveRules): string
+    {
+        if (empty($preserveRules)) {
+            return '';
+        }
+
+        $grammar = DB::getQueryGrammar();
+        $conditions = [];
+
+        foreach ($preserveRules as $rule) {
+            $parts = [];
+
+            foreach ($rule as $column => $value) {
+                $col = $grammar->wrap($column);
+                $escaped = addslashes($value);
+                $parts[] = "{$col} = '{$escaped}'";
+            }
+
+            $conditions[] = 'NOT ('.implode(' AND ', $parts).')';
+        }
+
+        return ' WHERE '.implode(' AND ', $conditions);
+    }
+
+    /**
+     * Apply preserve conditions to a query builder (exclude preserved rows).
+     *
+     * @param  array<int, array<string, mixed>>  $preserveRules
+     */
+    private function applyPreserveConditions(Builder $query, array $preserveRules): void
+    {
+        foreach ($preserveRules as $rule) {
+            $query->where(function (Builder $q) use ($rule) {
+                foreach ($rule as $column => $value) {
+                    $q->orWhere($column, '!=', $value);
+                }
+            });
+        }
     }
 
     private function rulesNeedIdentifier(array $rules): bool
@@ -180,13 +239,18 @@ class Sanitizer
         };
     }
 
-    private function shiftDates(string $table, array $columns): void
+    /**
+     * @param  array<int, array<string, mixed>>  $preserveRules
+     */
+    private function shiftDates(string $table, array $columns, array $preserveRules): void
     {
         $query = DB::table($table);
 
         foreach ($columns as $column) {
             $query->orWhereNotNull($column);
         }
+
+        $this->applyPreserveConditions($query, $preserveRules);
 
         $query->chunkById(500, function ($rows) use ($table, $columns) {
             foreach ($rows as $row) {

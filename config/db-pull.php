@@ -118,6 +118,13 @@ return [
             'telescope_monitoring',
         ],
 
+        // Rows to preserve (skip sanitization for matching rows)
+        // 'table_name' => [
+        //     ['column' => 'value'],            // single condition
+        //     ['role' => 'admin', 'id' => 1],   // multiple conditions (AND)
+        // ],
+        'preserve' => [],
+
         // Records to upsert after sanitization (e.g. a known admin user)
         // 'users' => [
         //     'key' => 'email',
