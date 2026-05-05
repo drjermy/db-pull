@@ -13,6 +13,11 @@ class Sanitizer
     public function run(): void
     {
         $config = config('db-pull.sanitize', []);
+
+        if (($config['enabled'] ?? true) === false) {
+            return;
+        }
+
         $globalColumns = $config['columns'] ?? [];
         $tableOverrides = $config['tables'] ?? [];
         $skipTables = $config['skip_tables'] ?? [];

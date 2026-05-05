@@ -185,10 +185,16 @@ class PullDatabase extends Command
         }
 
         // Step 4: Sanitize
-        spin(
-            fn () => (new Sanitizer)->run(),
-            'Sanitizing data...'
-        );
+        $sanitized = config('db-pull.sanitize.enabled', true);
+
+        if ($sanitized) {
+            spin(
+                fn () => (new Sanitizer)->run(),
+                'Sanitizing data...'
+            );
+        } else {
+            info('Sanitization skipped (db-pull.sanitize.enabled = false).');
+        }
 
         // Step 5: Offer to run migrations
         if (confirm('Run migrations to apply any new changes?', true)) {
@@ -198,7 +204,9 @@ class PullDatabase extends Command
         // Cleanup
         $this->handleDumpCleanup($dumpFile);
 
-        info('Production database pulled and sanitized successfully!');
+        info($sanitized
+            ? 'Production database pulled and sanitized successfully!'
+            : 'Production database pulled successfully (no sanitization applied).');
 
         return Command::SUCCESS;
     }
@@ -266,11 +274,14 @@ class PullDatabase extends Command
             return Command::FAILURE;
         }
 
-        // Sanitize
-        spin(
-            fn () => (new Sanitizer)->run(),
-            'Sanitizing data...'
-        );
+        if (config('db-pull.sanitize.enabled', true)) {
+            spin(
+                fn () => (new Sanitizer)->run(),
+                'Sanitizing data...'
+            );
+        } else {
+            info('Sanitization skipped (db-pull.sanitize.enabled = false).');
+        }
 
         // Offer to run migrations
         if (confirm('Run migrations to apply any new changes?', true)) {

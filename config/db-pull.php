@@ -90,6 +90,11 @@ return [
 
     'sanitize' => [
 
+        // Master switch. Set to false (e.g. DB_PULL_SANITIZE=false in .env) to
+        // skip sanitization entirely — useful in trusted local environments
+        // where you need real names and emails for testing.
+        'enabled' => env('DB_PULL_SANITIZE', true),
+
         // Global rules: applied to matching column names across ALL tables
         'columns' => [
             'email' => 'fake_email',
