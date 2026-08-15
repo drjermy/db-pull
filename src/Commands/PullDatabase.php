@@ -9,6 +9,7 @@ use DrJermy\DbPull\Sanitizer;
 use Illuminate\Console\Command;
 use Illuminate\Console\Prohibitable;
 use Illuminate\Support\Facades\Process;
+use Laravel\Prompts\Prompt;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
@@ -188,10 +189,7 @@ class PullDatabase extends Command
         $sanitized = config('db-pull.sanitize.enabled', true);
 
         if ($sanitized) {
-            spin(
-                fn () => (new Sanitizer)->run(),
-                'Sanitizing data...'
-            );
+            $this->sanitize();
         } else {
             info('Sanitization skipped (db-pull.sanitize.enabled = false).');
         }
@@ -275,10 +273,7 @@ class PullDatabase extends Command
         }
 
         if (config('db-pull.sanitize.enabled', true)) {
-            spin(
-                fn () => (new Sanitizer)->run(),
-                'Sanitizing data...'
-            );
+            $this->sanitize();
         } else {
             info('Sanitization skipped (db-pull.sanitize.enabled = false).');
         }
@@ -291,6 +286,25 @@ class PullDatabase extends Command
         info("Database restored from {$selectedDump['name']} successfully!");
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Sanitize the freshly restored database.
+     *
+     * A configured sanitize_command is an Illuminate command, and every
+     * command's run() repoints Laravel Prompts' global output at its own.
+     * Left alone, the next prompt renders into a buffer nobody reads: the
+     * pull looks stuck on "Sanitizing data..." while it silently waits for
+     * an answer. So hand the terminal back afterwards.
+     */
+    private function sanitize(): void
+    {
+        spin(
+            fn () => (new Sanitizer)->run(),
+            'Sanitizing data...'
+        );
+
+        Prompt::setOutput($this->output);
     }
 
     private function pushToStaging(): int
