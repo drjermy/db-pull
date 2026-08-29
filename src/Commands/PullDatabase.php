@@ -9,6 +9,7 @@ use DrJermy\DbPull\Sanitizer;
 use Illuminate\Console\Command;
 use Illuminate\Console\Prohibitable;
 use Illuminate\Contracts\Process\ProcessResult;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Process;
 use Laravel\Prompts\Prompt;
 
@@ -508,7 +509,7 @@ class PullDatabase extends Command
         return Command::SUCCESS;
     }
 
-    private function getDumpFiles(): \Illuminate\Support\Collection
+    private function getDumpFiles(): Collection
     {
         $dumpPath = config('db-pull.dump_path');
 
