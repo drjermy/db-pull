@@ -44,6 +44,12 @@ class PullDatabase extends Command
 
         $this->driver = $this->resolveDriver();
 
+        if (! config('db-pull.local.database')) {
+            error('No local database configured. Set DB_DATABASE in your .env file.');
+
+            return Command::FAILURE;
+        }
+
         if ($this->option('push-to-staging')) {
             if (! $this->hasStagingConfig()) {
                 error('Staging database credentials are not configured.');
@@ -189,7 +195,9 @@ class PullDatabase extends Command
         $sanitized = config('db-pull.sanitize.enabled', true);
 
         if ($sanitized) {
-            $this->sanitize();
+            if (! $this->sanitize()) {
+                return Command::FAILURE;
+            }
         } else {
             info('Sanitization skipped (db-pull.sanitize.enabled = false).');
         }
@@ -273,7 +281,9 @@ class PullDatabase extends Command
         }
 
         if (config('db-pull.sanitize.enabled', true)) {
-            $this->sanitize();
+            if (! $this->sanitize()) {
+                return Command::FAILURE;
+            }
         } else {
             info('Sanitization skipped (db-pull.sanitize.enabled = false).');
         }
@@ -297,14 +307,24 @@ class PullDatabase extends Command
      * pull looks stuck on "Sanitizing data..." while it silently waits for
      * an answer. So hand the terminal back afterwards.
      */
-    private function sanitize(): void
+    private function sanitize(): bool
     {
-        spin(
-            fn () => (new Sanitizer)->run(),
-            'Sanitizing data...'
-        );
+        try {
+            spin(
+                fn () => (new Sanitizer)->run(),
+                'Sanitizing data...'
+            );
+        } catch (\Throwable $e) {
+            Prompt::setOutput($this->output);
+            error('Sanitization failed: '.$e->getMessage());
+            warning('The local database still holds unsanitized production data.');
+
+            return false;
+        }
 
         Prompt::setOutput($this->output);
+
+        return true;
     }
 
     private function pushToStaging(): int

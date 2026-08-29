@@ -2,16 +2,26 @@
 
 namespace DrJermy\DbPull;
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 class Sanitizer
 {
+    private Connection $db;
+
+    public function __construct(?string $connection = null)
+    {
+        $this->db = DB::connection($connection ?? config('db-pull.local.connection'));
+    }
+
     public function run(): void
     {
+        $this->assertConnectionMatchesTarget();
+
         $config = config('db-pull.sanitize', []);
 
         if (($config['enabled'] ?? true) === false) {
@@ -58,7 +68,7 @@ class Sanitizer
             $key = $seed['key'];
             $values = $seed['values'];
 
-            DB::table($table)->updateOrInsert(
+            $this->db->table($table)->updateOrInsert(
                 [$key => $values[$key]],
                 $values,
             );
@@ -73,12 +83,31 @@ class Sanitizer
     }
 
     /**
+     * The pull restores into db-pull.local.database, but sanitization runs
+     * through a Laravel connection. If the two are not the same database we
+     * would scrub one database and leave the freshly pulled production data
+     * sitting in the other, without a word. Fail loudly instead.
+     */
+    private function assertConnectionMatchesTarget(): void
+    {
+        $target = config('db-pull.local.database');
+        $actual = $this->db->getDatabaseName();
+
+        if ($target && $actual !== $target) {
+            throw new RuntimeException(
+                "connection [{$this->db->getName()}] is database [{$actual}], but db-pull restored into [{$target}]. "
+                .'Set db-pull.local.connection to the connection for that database.'
+            );
+        }
+    }
+
+    /**
      * @param  array<string, string>  $rules
      * @param  array<int, array<string, mixed>>  $preserveRules
      */
     private function sanitizeTable(string $table, array $rules, array $preserveRules): void
     {
-        $columns = Schema::getColumnListing($table);
+        $columns = $this->db->getSchemaBuilder()->getColumnListing($table);
         $applicableRules = array_intersect_key($rules, array_flip($columns));
 
         if (empty($applicableRules)) {
@@ -115,11 +144,11 @@ class Sanitizer
 
         // Run bulk UPDATE for non-date strategies
         if (! empty($sets)) {
-            $grammar = DB::getQueryGrammar();
+            $grammar = $this->db->getQueryGrammar();
             $wrappedTable = $grammar->wrapTable($table);
             $setString = implode(', ', $sets);
             $where = $this->buildPreserveWhereClause($preserveRules);
-            DB::statement("UPDATE {$wrappedTable} SET {$setString}{$where}");
+            $this->db->statement("UPDATE {$wrappedTable} SET {$setString}{$where}");
         }
 
         // Handle shift_date separately (needs per-row randomisation)
@@ -139,7 +168,7 @@ class Sanitizer
         $counter = 0;
         $hashedPassword = Hash::make('password');
 
-        $query = DB::table($table)->orderBy(DB::raw('1'));
+        $query = $this->db->table($table)->orderBy($this->db->raw('1'));
         $this->applyPreserveConditions($query, $preserveRules);
 
         $query->each(function ($row) use ($table, $rules, &$counter, $hashedPassword) {
@@ -162,7 +191,7 @@ class Sanitizer
                 };
             }
 
-            DB::table($table)->where($where)->limit(1)->update($updates);
+            $this->db->table($table)->where($where)->limit(1)->update($updates);
         });
     }
 
@@ -177,7 +206,7 @@ class Sanitizer
             return '';
         }
 
-        $grammar = DB::getQueryGrammar();
+        $grammar = $this->db->getQueryGrammar();
         $conditions = [];
 
         foreach ($preserveRules as $rule) {
@@ -227,11 +256,11 @@ class Sanitizer
 
     private function buildSetClause(string $column, string $strategy): ?string
     {
-        $grammar = DB::getQueryGrammar();
+        $grammar = $this->db->getQueryGrammar();
         $col = $grammar->wrap($column);
         $id = $grammar->wrap('id');
 
-        $isPgsql = config('db-pull.driver', 'mysql') === 'pgsql';
+        $isPgsql = $this->db->getDriverName() === 'pgsql';
 
         return match ($strategy) {
             'fake_email' => "{$col} = CONCAT('user', {$id}, '@example.com')",
@@ -253,7 +282,7 @@ class Sanitizer
         // The OR group must be parenthesised: left ungrouped, SQL's AND binds
         // tighter than OR and the preserve conditions would only apply to the
         // last date column, shifting rows that were meant to be preserved.
-        $query = DB::table($table)->where(function (Builder $q) use ($columns) {
+        $query = $this->db->table($table)->where(function (Builder $q) use ($columns) {
             foreach ($columns as $column) {
                 $q->orWhereNotNull($column);
             }
@@ -275,7 +304,7 @@ class Sanitizer
                 }
 
                 if (! empty($updates)) {
-                    DB::table($table)->where('id', $row->id)->update($updates);
+                    $this->db->table($table)->where('id', $row->id)->update($updates);
                 }
             }
         });
@@ -286,7 +315,7 @@ class Sanitizer
      */
     private function getAllTables(): array
     {
-        return collect(Schema::getTables())
+        return collect($this->db->getSchemaBuilder()->getTables())
             ->pluck('name')
             ->all();
     }

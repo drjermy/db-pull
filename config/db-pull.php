@@ -47,6 +47,12 @@ return [
     */
 
     'local' => [
+        // The Laravel connection used to sanitize the restored data. Null uses
+        // your default connection. Set this when the database you pull into is
+        // not the app's default — otherwise db-pull would restore production
+        // data into one database and sanitize a different one.
+        'connection' => env('DB_PULL_CONNECTION'),
+
         'username' => env('DB_USERNAME', 'root'),
         'password' => env('DB_PASSWORD', ''),
         'database' => env('DB_DATABASE'),

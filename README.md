@@ -61,6 +61,12 @@ STAGING_DB_DATABASE=staging
 
 The driver defaults to `DB_CONNECTION`; override with `DB_PULL_DRIVER=mysql|pgsql`.
 
+Sanitization runs through a Laravel database connection. By default that's your
+app's default connection, which is almost always the one you pulled into. If it
+isn't, set `DB_PULL_CONNECTION` to the connection whose database matches
+`DB_DATABASE` — db-pull checks the two agree and aborts rather than sanitizing
+the wrong database.
+
 ## Usage
 
 Run it with no options for an interactive menu:
@@ -165,6 +171,8 @@ local environment where you need the real data.
 - `--push-to-staging` will not target a forbidden database name.
 - The command uses Laravel's `Prohibitable` trait, so you can disable it
   outright from a service provider with `PullDatabase::prohibit()`.
+- If sanitization fails, the command reports it and exits non-zero instead of
+  quietly leaving unsanitized production data in your local database.
 
 Dump files contain unsanitized production data until they are restored and
 sanitized. Keep them out of version control and delete them when you're done —
