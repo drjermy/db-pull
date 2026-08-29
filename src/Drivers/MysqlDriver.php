@@ -4,6 +4,8 @@ namespace DrJermy\DbPull\Drivers;
 
 class MysqlDriver implements Driver
 {
+    public const DEFAULT_PORT = 3306;
+
     /**
      * Connection strings for MySQL are stored as JSON-encoded arrays
      * since MySQL CLI tools use separate flags rather than a URI.
@@ -55,11 +57,11 @@ class MysqlDriver implements Driver
         ]);
     }
 
-    public function localConnectionString(string $database, string $username, string $password = ''): string
+    public function localConnectionString(string $database, string $username, string $password = '', ?int $port = null): string
     {
         $args = [
             '--host=127.0.0.1',
-            '--port=3306',
+            '--port='.($port ?? self::DEFAULT_PORT),
             '--user='.$username,
         ];
 

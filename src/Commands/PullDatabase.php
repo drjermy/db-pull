@@ -489,6 +489,7 @@ class PullDatabase extends Command
             config('db-pull.local.database'),
             config('db-pull.local.username'),
             config('db-pull.local.password', ''),
+            config('db-pull.local.port') ? (int) config('db-pull.local.port') : null,
         );
     }
 

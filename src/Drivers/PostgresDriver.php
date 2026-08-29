@@ -4,6 +4,8 @@ namespace DrJermy\DbPull\Drivers;
 
 class PostgresDriver implements Driver
 {
+    public const DEFAULT_PORT = 5432;
+
     public function dumpCommand(string $connectionString, string $dumpFile): array
     {
         return [
@@ -44,13 +46,15 @@ class PostgresDriver implements Driver
         return "postgres://{$username}:{$password}@{$server}/{$database}";
     }
 
-    public function localConnectionString(string $database, string $username, string $password = ''): string
+    public function localConnectionString(string $database, string $username, string $password = '', ?int $port = null): string
     {
+        $port ??= self::DEFAULT_PORT;
+
         if ($password !== '') {
-            return "postgres://{$username}:{$password}@127.0.0.1/{$database}";
+            return "postgres://{$username}:{$password}@127.0.0.1:{$port}/{$database}";
         }
 
-        return "postgres://{$username}@127.0.0.1/{$database}";
+        return "postgres://{$username}@127.0.0.1:{$port}/{$database}";
     }
 
     public function dumpExtension(): string

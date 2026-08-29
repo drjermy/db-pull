@@ -50,6 +50,12 @@ return [
         'username' => env('DB_USERNAME', 'root'),
         'password' => env('DB_PASSWORD', ''),
         'database' => env('DB_DATABASE'),
+
+        // Null falls back to the driver default (5432 for pgsql, 3306 for
+        // mysql). Set DB_PORT when the local server is not on that port —
+        // for example a second Postgres instance running alongside the
+        // default one to match a newer remote major version.
+        'port' => env('DB_PORT'),
     ],
 
     /*

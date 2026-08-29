@@ -32,8 +32,10 @@ interface Driver
 
     /**
      * Build a connection string or arguments for the local database.
+     *
+     * A null $port means "use this driver's default port".
      */
-    public function localConnectionString(string $database, string $username, string $password = ''): string;
+    public function localConnectionString(string $database, string $username, string $password = '', ?int $port = null): string;
 
     /**
      * The file extension to use for dump files.
