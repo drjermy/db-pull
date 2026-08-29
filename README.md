@@ -79,9 +79,14 @@ php artisan db:pull
 | --- | --- |
 | `--force` | Skip the confirmation prompts and pull straight away |
 | `--keep-dump` | Keep the dump file after restoring |
+| `--dump-only` | Download a production dump and stop, leaving your local database alone |
 | `--from-dump` | Restore from an existing dump instead of pulling fresh |
 | `--clean-dumps` | Pick old dump files to delete |
 | `--push-to-staging` | Dump your **local** database and restore it over staging |
+
+`--dump-only` is the read-only one: it dumps production, keeps the file, and
+stops. Nothing local is dropped, nothing is sanitized. Pair it with
+`--from-dump` later to restore that dump whenever you're ready.
 
 `--push-to-staging` is the one that writes to a remote server. It refuses any
 database named in `forbidden_staging_databases` (`main`, `master`, `production`,

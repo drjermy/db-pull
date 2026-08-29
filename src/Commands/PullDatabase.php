@@ -29,6 +29,7 @@ class PullDatabase extends Command
                             {--keep-dump : Keep the dump file after restore}
                             {--push-to-staging : Push local database to staging (does not pull from production)}
                             {--from-dump : Restore from an existing dump file instead of pulling fresh}
+                            {--dump-only : Download the production dump without touching the local database}
                             {--clean-dumps : Delete old dump files}
                             {--force : Skip confirmation prompt}';
 
@@ -68,6 +69,10 @@ class PullDatabase extends Command
 
         if ($this->option('from-dump')) {
             return $this->restoreFromDump();
+        }
+
+        if ($this->option('dump-only')) {
+            return $this->pullFromProduction(dumpOnly: true);
         }
 
         if (! $this->option('force') && ! $this->option('keep-dump')) {
@@ -116,6 +121,7 @@ class PullDatabase extends Command
 
         $options = [
             'pull' => 'Pull fresh from production',
+            'dump' => 'Download a production dump only (leaves your local database alone)',
         ];
 
         if ($hasDumps) {
@@ -134,13 +140,20 @@ class PullDatabase extends Command
 
         return match ($action) {
             'pull' => $this->pullFromProduction(),
+            'dump' => $this->pullFromProduction(dumpOnly: true),
             'restore' => $this->restoreFromDump(),
             'clean' => $this->cleanDumps(),
             'staging' => $this->pushToStaging(),
         };
     }
 
-    private function pullFromProduction(): int
+    /**
+     * Dump production and restore it locally.
+     *
+     * With $dumpOnly the run stops once the dump is on disk: nothing local is
+     * dropped, nothing is sanitized, and the file is always kept.
+     */
+    private function pullFromProduction(bool $dumpOnly = false): int
     {
         $server = config('db-pull.cloud.server');
         $username = config('db-pull.cloud.username');
@@ -154,7 +167,7 @@ class PullDatabase extends Command
             return Command::FAILURE;
         }
 
-        if (! $this->option('force') && ! confirm('This will overwrite your local database. Are you sure?', false)) {
+        if (! $dumpOnly && ! $this->option('force') && ! confirm('This will overwrite your local database. Are you sure?', false)) {
             info('Operation cancelled.');
 
             return Command::SUCCESS;
@@ -184,6 +197,13 @@ class PullDatabase extends Command
             $this->line($dumpResult->errorOutput());
 
             return Command::FAILURE;
+        }
+
+        if ($dumpOnly) {
+            info("Dump saved to: {$dumpFile}");
+            warning('This dump holds unsanitized production data. Delete it when you are done.');
+
+            return Command::SUCCESS;
         }
 
         // Step 2: Reset local database
