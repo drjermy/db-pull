@@ -41,20 +41,24 @@ class PostgresDriver implements Driver
         ];
     }
 
-    public function remoteConnectionString(string $server, string $username, string $password, string $database): string
+    public function remoteConnectionString(string $server, string $username, string $database): string
     {
-        return "postgres://{$username}:{$password}@{$server}/{$database}";
+        return "postgres://{$username}@{$server}/{$database}";
     }
 
-    public function localConnectionString(string $database, string $username, string $password = '', ?int $port = null): string
+    public function localConnectionString(string $database, string $username, ?int $port = null): string
     {
         $port ??= self::DEFAULT_PORT;
 
-        if ($password !== '') {
-            return "postgres://{$username}:{$password}@127.0.0.1:{$port}/{$database}";
-        }
-
         return "postgres://{$username}@127.0.0.1:{$port}/{$database}";
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function environment(string $password): array
+    {
+        return $password === '' ? [] : ['PGPASSWORD' => $password];
     }
 
     public function dumpExtension(): string

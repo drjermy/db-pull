@@ -8,6 +8,7 @@ use DrJermy\DbPull\Drivers\PostgresDriver;
 use DrJermy\DbPull\Sanitizer;
 use Illuminate\Console\Command;
 use Illuminate\Console\Prohibitable;
+use Illuminate\Contracts\Process\ProcessResult;
 use Illuminate\Support\Facades\Process;
 use Laravel\Prompts\Prompt;
 
@@ -73,6 +74,28 @@ class PullDatabase extends Command
         }
 
         return $this->pullFromProduction();
+    }
+
+    /**
+     * Run one of the database CLI tools with the password in its environment.
+     *
+     * ponytail: MYSQL_PWD / PGPASSWORD keep the password out of the
+     * world-readable process list, which is all this needs. If it ever has to
+     * run on a shared host, move to an option file (--defaults-extra-file)
+     * to hide it from /proc/<pid>/environ too.
+     *
+     * @param  array<int, string>  $command
+     */
+    private function runProcess(array $command, string $password): ProcessResult
+    {
+        return Process::env($this->driver->environment($password))
+            ->timeout(300)
+            ->run($command);
+    }
+
+    private function localPassword(): string
+    {
+        return (string) config('db-pull.local.password', '');
     }
 
     private function resolveDriver(): Driver
@@ -143,13 +166,14 @@ class PullDatabase extends Command
             mkdir($dumpPath, 0755, true);
         }
 
-        $remoteConnection = $this->driver->remoteConnectionString($server, $username, $password, $remoteDatabase);
+        $remoteConnection = $this->driver->remoteConnectionString($server, $username, $remoteDatabase);
         $localConnection = $this->buildLocalConnection();
 
         // Step 1: Dump production
         $dumpResult = spin(
-            fn () => Process::timeout(300)->run(
-                $this->driver->dumpCommand($remoteConnection, $dumpFile)
+            fn () => $this->runProcess(
+                $this->driver->dumpCommand($remoteConnection, $dumpFile),
+                $password,
             ),
             'Dumping production database...'
         );
@@ -163,8 +187,9 @@ class PullDatabase extends Command
 
         // Step 2: Reset local database
         $resetResult = spin(
-            fn () => Process::run(
-                $this->driver->resetCommand($localConnection)
+            fn () => $this->runProcess(
+                $this->driver->resetCommand($localConnection),
+                $this->localPassword(),
             ),
             'Resetting local database...'
         );
@@ -178,8 +203,9 @@ class PullDatabase extends Command
 
         // Step 3: Restore to local
         $restoreResult = spin(
-            fn () => Process::timeout(300)->run(
-                $this->driver->restoreCommand($localConnection, $dumpFile)
+            fn () => $this->runProcess(
+                $this->driver->restoreCommand($localConnection, $dumpFile),
+                $this->localPassword(),
             ),
             'Restoring to local database...'
         );
@@ -252,8 +278,9 @@ class PullDatabase extends Command
 
         // Reset local database
         $resetResult = spin(
-            fn () => Process::run(
-                $this->driver->resetCommand($localConnection)
+            fn () => $this->runProcess(
+                $this->driver->resetCommand($localConnection),
+                $this->localPassword(),
             ),
             'Resetting local database...'
         );
@@ -267,8 +294,9 @@ class PullDatabase extends Command
 
         // Restore from dump
         $restoreResult = spin(
-            fn () => Process::timeout(300)->run(
-                $this->driver->restoreCommand($localConnection, $selectedDump['path'])
+            fn () => $this->runProcess(
+                $this->driver->restoreCommand($localConnection, $selectedDump['path']),
+                $this->localPassword(),
             ),
             "Restoring from {$selectedDump['name']}..."
         );
@@ -363,13 +391,14 @@ class PullDatabase extends Command
 
         $ext = $this->driver->dumpExtension();
         $localConnection = $this->buildLocalConnection();
-        $stagingConnection = $this->driver->remoteConnectionString($stagingServer, $stagingUsername, $stagingPassword, $stagingDatabase);
+        $stagingConnection = $this->driver->remoteConnectionString($stagingServer, $stagingUsername, $stagingDatabase);
         $sanitizedDumpFile = $dumpPath.'/sanitized-'.now()->format('Y-m-d-His').$ext;
 
         // Dump the local database
         $dumpResult = spin(
-            fn () => Process::timeout(300)->run(
-                $this->driver->dumpCommand($localConnection, $sanitizedDumpFile)
+            fn () => $this->runProcess(
+                $this->driver->dumpCommand($localConnection, $sanitizedDumpFile),
+                $this->localPassword(),
             ),
             'Dumping local database...'
         );
@@ -383,8 +412,9 @@ class PullDatabase extends Command
 
         // Reset staging database
         $resetResult = spin(
-            fn () => Process::run(
-                $this->driver->resetCommand($stagingConnection)
+            fn () => $this->runProcess(
+                $this->driver->resetCommand($stagingConnection),
+                $stagingPassword,
             ),
             'Resetting staging database...'
         );
@@ -399,8 +429,9 @@ class PullDatabase extends Command
 
         // Restore to staging
         $restoreResult = spin(
-            fn () => Process::timeout(300)->run(
-                $this->driver->restoreCommand($stagingConnection, $sanitizedDumpFile)
+            fn () => $this->runProcess(
+                $this->driver->restoreCommand($stagingConnection, $sanitizedDumpFile),
+                $stagingPassword,
             ),
             'Restoring to staging database...'
         );
@@ -506,9 +537,8 @@ class PullDatabase extends Command
     private function buildLocalConnection(): string
     {
         return $this->driver->localConnectionString(
-            config('db-pull.local.database'),
-            config('db-pull.local.username'),
-            config('db-pull.local.password', ''),
+            (string) config('db-pull.local.database'),
+            (string) config('db-pull.local.username'),
             config('db-pull.local.port') ? (int) config('db-pull.local.port') : null,
         );
     }

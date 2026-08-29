@@ -171,6 +171,8 @@ local environment where you need the real data.
 - `--push-to-staging` will not target a forbidden database name.
 - The command uses Laravel's `Prohibitable` trait, so you can disable it
   outright from a service provider with `PullDatabase::prohibit()`.
+- Passwords are handed to `mysqldump`/`pg_dump` and friends through `MYSQL_PWD`
+  and `PGPASSWORD`, never on the command line, so they don't show up in `ps`.
 - If sanitization fails, the command reports it and exits non-zero instead of
   quietly leaving unsanitized production data in your local database.
 

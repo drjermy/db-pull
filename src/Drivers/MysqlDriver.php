@@ -36,7 +36,6 @@ class MysqlDriver implements Driver
 
     public function resetCommand(string $connectionString): array
     {
-        $args = $this->parseConnectionArgs($connectionString);
         $database = $this->extractDatabase($connectionString);
 
         return array_merge(
@@ -46,32 +45,32 @@ class MysqlDriver implements Driver
         );
     }
 
-    public function remoteConnectionString(string $server, string $username, string $password, string $database): string
+    public function remoteConnectionString(string $server, string $username, string $database): string
     {
         return json_encode([
             '--host='.$server,
-            '--port=3306',
+            '--port='.self::DEFAULT_PORT,
             '--user='.$username,
-            '--password='.$password,
             $database,
         ]);
     }
 
-    public function localConnectionString(string $database, string $username, string $password = '', ?int $port = null): string
+    public function localConnectionString(string $database, string $username, ?int $port = null): string
     {
-        $args = [
+        return json_encode([
             '--host=127.0.0.1',
             '--port='.($port ?? self::DEFAULT_PORT),
             '--user='.$username,
-        ];
+            $database,
+        ]);
+    }
 
-        if ($password !== '') {
-            $args[] = '--password='.$password;
-        }
-
-        $args[] = $database;
-
-        return json_encode($args);
+    /**
+     * @return array<string, string>
+     */
+    public function environment(string $password): array
+    {
+        return $password === '' ? [] : ['MYSQL_PWD' => $password];
     }
 
     public function dumpExtension(): string
