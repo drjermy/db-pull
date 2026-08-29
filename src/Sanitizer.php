@@ -213,7 +213,8 @@ class Sanitizer
 
     private function rulesNeedIdentifier(array $rules): bool
     {
-        $idStrategies = ['fake_email', 'fake_name', 'fake_phone'];
+        // shift_date is here because shiftDates() pages with chunkById().
+        $idStrategies = ['fake_email', 'fake_name', 'fake_phone', 'shift_date'];
 
         foreach ($rules as $strategy) {
             if (in_array($strategy, $idStrategies, true)) {
@@ -249,11 +250,14 @@ class Sanitizer
      */
     private function shiftDates(string $table, array $columns, array $preserveRules): void
     {
-        $query = DB::table($table);
-
-        foreach ($columns as $column) {
-            $query->orWhereNotNull($column);
-        }
+        // The OR group must be parenthesised: left ungrouped, SQL's AND binds
+        // tighter than OR and the preserve conditions would only apply to the
+        // last date column, shifting rows that were meant to be preserved.
+        $query = DB::table($table)->where(function (Builder $q) use ($columns) {
+            foreach ($columns as $column) {
+                $q->orWhereNotNull($column);
+            }
+        });
 
         $this->applyPreserveConditions($query, $preserveRules);
 
