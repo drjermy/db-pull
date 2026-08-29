@@ -2,7 +2,29 @@
     "name": "drjermy/db-pull",
     "description": "Pull production databases locally with automatic sanitization",
     "type": "library",
+    "keywords": [
+        "laravel",
+        "database",
+        "mysql",
+        "postgres",
+        "dump",
+        "sanitize",
+        "anonymize",
+        "gdpr",
+        "artisan"
+    ],
+    "homepage": "https://github.com/drjermy/db-pull",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Jeremy Jones",
+            "email": "jeremy@jonesonthe.net"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/drjermy/db-pull/issues",
+        "source": "https://github.com/drjermy/db-pull"
+    },
     "require": {
         "php": "^8.2",
         "illuminate/console": "^11.0 || ^12.0 || ^13.0",
