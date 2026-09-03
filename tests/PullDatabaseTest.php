@@ -2,8 +2,13 @@
 
 namespace DrJermy\DbPull\Tests;
 
+use DrJermy\DbPull\Commands\PullDatabase;
+use DrJermy\DbPull\Drivers\MysqlDriver;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Process;
+use Laravel\Prompts\Key;
+use Laravel\Prompts\Prompt;
+use ReflectionClass;
 
 class PullDatabaseTest extends TestCase
 {
@@ -84,6 +89,60 @@ class PullDatabaseTest extends TestCase
         $this->artisan('db:pull', ['--dump-only' => true])->assertFailed();
 
         Process::assertNothingRan();
+    }
+
+    /**
+     * The prompt lives behind db:pull's wizard, which artisan tests can't drive:
+     * the command only runs when the app env is "local", and that same env
+     * switch turns off the prompt fallback expectsConfirmation() relies on.
+     * So drive the helper itself with faked key presses.
+     */
+    public function test_it_deletes_every_dump_but_the_one_being_kept(): void
+    {
+        [$keep, $old] = $this->makeDumps();
+
+        $this->offerToDeleteOlderDumps($keep, ['y', Key::ENTER]);
+
+        $this->assertFileExists($keep);
+        $this->assertFileDoesNotExist($old);
+    }
+
+    public function test_it_keeps_the_older_dumps_when_declined(): void
+    {
+        [$keep, $old] = $this->makeDumps();
+
+        $this->offerToDeleteOlderDumps($keep, [Key::ENTER]);
+
+        $this->assertFileExists($keep);
+        $this->assertFileExists($old);
+    }
+
+    /**
+     * @return array{string, string}
+     */
+    private function makeDumps(): array
+    {
+        mkdir($this->dumpPath, 0755, true);
+
+        $keep = $this->dumpPath.'/dump-2026-01-02-030405.sql';
+        $old = $this->dumpPath.'/dump-2020-01-01-000000.sql';
+        touch($keep);
+        touch($old);
+
+        return [$keep, $old];
+    }
+
+    /**
+     * @param  array<int, string>  $keys
+     */
+    private function offerToDeleteOlderDumps(string $keep, array $keys): void
+    {
+        Prompt::fake($keys);
+
+        $command = new PullDatabase;
+        $reflection = new ReflectionClass($command);
+        $reflection->getProperty('driver')->setValue($command, new MysqlDriver);
+        $reflection->getMethod('offerToDeleteOlderDumps')->invoke($command, $keep);
     }
 
     private function binary(PendingProcess $process): string

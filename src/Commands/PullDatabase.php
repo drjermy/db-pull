@@ -570,10 +570,30 @@ class PullDatabase extends Command
             info("Dump file kept at: {$dumpFile}");
         } elseif (confirm('Keep the dump file for later use?', false)) {
             info("Dump file kept at: {$dumpFile}");
+            $this->offerToDeleteOlderDumps($dumpFile);
         } else {
             unlink($dumpFile);
             info('Dump file cleaned up.');
         }
+    }
+
+    private function offerToDeleteOlderDumps(string $keepFile): void
+    {
+        $older = $this->getDumpFiles()->reject(fn ($dump) => $dump['path'] === $keepFile);
+
+        if ($older->isEmpty()) {
+            return;
+        }
+
+        $size = $this->formatBytes($older->sum(fn ($dump) => filesize($dump['path'])));
+
+        if (! confirm("Delete all older dumps ({$older->count()} file(s), {$size})?", false)) {
+            return;
+        }
+
+        $older->each(fn ($dump) => unlink($dump['path']));
+
+        info("Deleted {$older->count()} older dump file(s).");
     }
 
     private function formatBytes(int $bytes): string
